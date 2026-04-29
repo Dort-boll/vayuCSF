@@ -29,7 +29,11 @@ import {
   Users,
   Flag,
   Globe,
-  Monitor
+  Monitor,
+  LogIn,
+  LogOut,
+  Lock,
+  ArrowRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -73,11 +77,14 @@ const SUGGESTIONS = [
 export default function App() {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingTime, setLoadingTime] = useState(0);
   const [result, setResult] = useState<VayuResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
   const [history, setHistory] = useState<string[]>([]);
   const [isPuterReady, setIsPuterReady] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'recon' | 'payloads' | 'intel' | 'report'>('all');
   const resultsRef = useRef<HTMLDivElement>(null);
 
@@ -95,18 +102,27 @@ export default function App() {
           setTimeout(initPuter, 500);
           return;
         }
-        console.warn("Puter.js not found after retries");
+        console.warn("Vayu Core not found after retries");
+        setAuthLoading(false);
         loadLocalHistory();
         return;
       }
 
       try {
+        // Auth check
+        const isSignedIn = await p.auth.isSignedIn();
+        if (isSignedIn) {
+          const u = await p.auth.getUser();
+          setUser(u);
+        }
+        setAuthLoading(false);
+
         const savedHistory = await p.kv.get('vayu_history');
         if (savedHistory) {
           try {
             setHistory(typeof savedHistory === 'string' ? JSON.parse(savedHistory) : savedHistory);
           } catch (e) {
-            console.error("Failed to parse history from Puter KV:", e);
+            console.error("Failed to parse history from local vault:", e);
             loadLocalHistory();
           }
         } else {
@@ -114,7 +130,8 @@ export default function App() {
         }
         setIsPuterReady(true);
       } catch (err) {
-        console.error("Puter.js KV access failed:", err);
+        console.error("Vayu Vault or Auth access failed:", err);
+        setAuthLoading(false);
         loadLocalHistory();
       }
     };
@@ -152,13 +169,38 @@ export default function App() {
     }
   };
 
+  const handleSignIn = async () => {
+    const p = (window as any).puter;
+    if (!p) return;
+    try {
+      const u = await p.auth.signIn();
+      setUser(u);
+    } catch (err) {
+      console.error("Sign in failed:", err);
+    }
+  };
+
+  const handleSignOut = () => {
+    const p = (window as any).puter;
+    if (p) p.auth.signOut();
+    setUser(null);
+    setResult(null);
+    setHistory([]);
+  };
+
   const handleSearch = async (e?: React.FormEvent, overrideQuery?: string) => {
     e?.preventDefault();
     const activeQuery = overrideQuery || query;
     if (!activeQuery.trim()) return;
 
     setLoading(true);
+    setLoadingTime(0);
     setError(null);
+
+    const timer = setInterval(() => {
+      setLoadingTime(prev => prev + 1);
+    }, 1000);
+
     try {
       const data = await queryVayu(activeQuery);
       setResult(data);
@@ -167,9 +209,10 @@ export default function App() {
         resultsRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
     } catch (err: any) {
-      setError(err.message || "An unexpected error occurred. Ensure Puter.js is active.");
+      setError(err.message || "An unexpected error occurred. Ensure Vayu AGI Core is active.");
     } finally {
       setLoading(false);
+      clearInterval(timer);
     }
   };
 
@@ -179,155 +222,352 @@ export default function App() {
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 py-12 min-h-screen flex flex-col">
-      {/* Header */}
-      <header className="text-center mb-16 relative">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-64 bg-neon-green/5 blur-[120px] -z-10 pointer-events-none" />
-        
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="inline-flex items-center gap-3 mb-6 px-4 py-1 rounded-full bg-neon-green/10 border border-neon-green/20 backdrop-blur-md"
-        >
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-cyber-bg flex items-center justify-center">
+        <div className="flex flex-col items-center gap-6">
           <div className="relative">
-            <Activity className="w-4 h-4 text-neon-green animate-pulse" />
-            <div className="absolute inset-0 bg-neon-green blur-sm animate-pulse opacity-50" />
+            <div className="absolute inset-0 bg-neon-green/20 blur-2xl animate-pulse" />
+            <Loader2 className="w-12 h-12 text-neon-green animate-spin relative" />
           </div>
-          <span className="text-[10px] font-mono text-neon-green tracking-[0.3em] uppercase font-bold">Vayu AGI v2.5 Research Agent</span>
-        </motion.div>
-        
-        <motion.h1 
-          initial={{ opacity: 0, filter: 'blur(10px)' }}
-          animate={{ opacity: 1, filter: 'blur(0px)' }}
-          className="text-7xl md:text-9xl font-black tracking-tighter mb-6 bg-gradient-to-b from-white via-white to-white/20 bg-clip-text text-transparent leading-none"
-        >
-          VAYU AGI
-        </motion.h1>
-        
-        <motion.p 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="text-white/40 text-lg md:text-xl max-w-2xl mx-auto font-mono tracking-tight"
-        >
-          Automated Cyber Threat Research & Analysis Agent<br/>
-          <span className="text-[10px] opacity-40 uppercase tracking-[0.5em] mt-2 block">Powered by Puter.js • 100% Frontend</span>
-        </motion.p>
-      </header>
-
-      {/* Search Bar */}
-      <div className="max-w-4xl mx-auto w-full mb-12">
-        <form onSubmit={handleSearch} className="relative group">
-          <div className="absolute inset-0 bg-neon-green/20 blur-3xl group-hover:bg-neon-green/30 transition-all duration-500 rounded-full opacity-50" />
-          <div className="relative flex items-center glass-card p-3 neon-border bg-black/40">
-            <Search className="w-7 h-7 ml-4 text-white/40" />
-            <input 
-              type="text" 
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Research threat... (e.g., analyze recent Log4j variants)"
-              className="flex-1 bg-transparent border-none outline-none px-4 py-4 text-xl font-mono placeholder:text-white/20"
-            />
-            <button 
-              disabled={loading}
-              className="cyber-button flex items-center gap-2 mr-2 py-3 px-6"
-            >
-              {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Zap className="w-6 h-6" />}
-              <span className="hidden sm:inline font-bold">RESEARCH</span>
-            </button>
-          </div>
-        </form>
-
-        {/* Puter Cloud Status & History */}
-        <div className="mt-6 flex flex-col items-center gap-4">
-          <div className="flex items-center gap-2 text-[10px] font-mono text-white/30 uppercase tracking-widest">
-            <Cloud className={`w-3 h-3 ${isPuterReady ? 'text-neon-green' : 'text-white/20'}`} />
-            <span>{isPuterReady ? 'Puter AI & Cloud Active' : 'Initializing Puter...'}</span>
-          </div>
-
-          {history.length > 0 && (
-            <div className="w-full glass-card p-4 neon-border bg-black/20">
-              <div className="flex justify-between items-center mb-3">
-                <div className="flex items-center gap-2 text-xs font-mono text-white/40">
-                  <History className="w-3 h-3" />
-                  <span>Recent Research Missions</span>
-                </div>
-                <button 
-                  onClick={clearHistory}
-                  className="text-[10px] text-red-400/50 hover:text-red-400 flex items-center gap-1 transition-colors"
-                >
-                  <Trash2 className="w-3 h-3" /> Clear
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {history.map((h, i) => (
-                  <button
-                    key={i}
-                    onClick={() => { setQuery(h); handleSearch(undefined, h); }}
-                    className="text-[10px] font-mono px-3 py-1.5 rounded-md bg-white/5 border border-white/10 text-white/60 hover:text-neon-green hover:border-neon-green/30 transition-all"
-                  >
-                    {h}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Suggestions */}
-        <div className="mt-8 flex flex-wrap justify-center gap-2">
-          {SUGGESTIONS.map((s) => (
-            <button
-              key={s}
-              onClick={() => { setQuery(s); }}
-              className="text-[10px] font-mono uppercase tracking-wider px-4 py-2 rounded-full bg-white/5 border border-white/10 text-white/40 hover:text-neon-green hover:border-neon-green/30 transition-colors"
-            >
-              {s}
-            </button>
-          ))}
+          <p className="font-mono text-neon-green text-xs tracking-[0.5em] uppercase animate-pulse">Syncing Cryptographic Identity...</p>
         </div>
       </div>
+    );
+  }
 
-      {/* Error State */}
-      <AnimatePresence>
-        {error && (
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-cyber-bg flex flex-col items-center justify-center px-4 relative overflow-hidden selection:bg-neon-green selection:text-black">
+        {/* Advanced Background System */}
+        <div className="absolute inset-0 z-0 pointer-events-none">
+          <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(rgba(0,255,65,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,65,0.02)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)]" />
+          <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-neon-green/5 blur-[160px] rounded-full animate-pulse" />
+          <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-blue-500/5 blur-[160px] rounded-full animate-pulse" style={{ animationDelay: '2s' }} />
+        </div>
+
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="text-center z-10 max-w-6xl mx-auto py-12 md:py-24"
+        >
           <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="max-w-3xl mx-auto w-full mb-8 p-6 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 flex items-center gap-4 shadow-2xl"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="inline-flex items-center gap-3 mb-8 md:mb-12 px-5 py-2 rounded-xl bg-neon-green/5 border border-neon-green/20 backdrop-blur-2xl shadow-[0_0_20px_rgba(0,255,65,0.05)]"
           >
-            <AlertTriangle className="w-6 h-6 shrink-0" />
-            <div className="font-mono text-sm">
-              <p className="font-bold mb-1">RESEARCH AGENT ERROR</p>
-              <p>{error}</p>
-            </div>
+            <Shield className="w-4 h-4 text-neon-green" />
+            <span className="text-[9px] md:text-[10px] font-mono text-neon-green tracking-[0.4em] uppercase font-black">Secure Intelligence Protocol v2.5</span>
           </motion.div>
-        )}
-      </AnimatePresence>
 
-      {/* Results Section */}
-      <div ref={resultsRef} className="space-y-8 pb-24">
-        {loading && !result && (
-          <div className="flex flex-col items-center justify-center py-24 gap-6">
-            <div className="relative">
-              <div className="absolute inset-0 bg-neon-green/20 blur-2xl animate-pulse" />
-              <Loader2 className="w-16 h-16 text-neon-green animate-spin relative" />
-            </div>
-            <div className="text-center space-y-2">
-              <p className="font-mono text-neon-green text-lg animate-pulse tracking-widest">AGENT DEPLOYED: GATHERING INTEL...</p>
-              <p className="text-white/30 text-xs font-mono uppercase">Scanning Global Feeds • Analyzing Impact • Generating Mitigation Roadmap</p>
-            </div>
-          </div>
-        )}
+          <h1 className="text-[14vw] md:text-[10rem] lg:text-[12rem] font-black tracking-tighter mb-6 md:mb-10 leading-[0.8] md:leading-none select-none">
+            <span className="bg-gradient-to-b from-white via-white to-white/40 bg-clip-text text-transparent">VAYU</span>
+            <span className="text-neon-green drop-shadow-[0_0_15px_rgba(0,255,65,0.5)]">.</span>
+            <span className="bg-gradient-to-b from-white/40 to-white/10 bg-clip-text text-transparent">CSF</span>
+          </h1>
 
-        {result && (
-          <motion.div 
+          <motion.p 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="space-y-8"
+            transition={{ delay: 0.4 }}
+            className="text-white/40 text-lg md:text-2xl lg:text-3xl font-mono mb-12 md:mb-16 max-w-2xl lg:max-w-4xl mx-auto leading-tight md:leading-relaxed tracking-tight px-4"
           >
+            Autonomous <span className="text-white/80 font-black">Cyber Security Framework</span>. 
+            Identify breaches, neutralize vectors, and orchestrate elite threat research via AGI-driven heuristics.
+          </motion.p>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-6 md:gap-10">
+            <button 
+              onClick={handleSignIn}
+              className="group relative w-full sm:w-auto px-10 md:px-16 py-5 md:py-6 bg-neon-green text-black font-black uppercase tracking-[0.3em] rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-[0_0_40px_rgba(0,255,65,0.3)] hover:shadow-[0_0_60px_rgba(0,255,65,0.5)] flex items-center justify-center gap-4 text-sm md:text-base cursor-pointer"
+            >
+              <LogIn className="w-5 h-5 md:w-6 md:h-6" />
+              TERMINAL ACCESS
+              <div className="absolute inset-0 rounded-2xl bg-white opacity-0 group-hover:opacity-10 transition-opacity" />
+            </button>
+            <div className="flex items-center gap-6 text-[9px] md:text-[11px] font-mono text-white/30 uppercase tracking-[0.3em] font-bold">
+              <div className="flex items-center gap-2">
+                <Lock className="w-4 h-4" /> CVSS 10.0 Analysis
+              </div>
+              <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
+              <div className="flex items-center gap-2">
+                <Cloud className="w-4 h-4" /> Global Node Sync
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Dynamic Feature Grid - Highly Optimized for All Screens */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 max-w-7xl w-full px-4 md:px-8 mt-12 md:mt-24 z-10 pb-20">
+          {[
+            { 
+              icon: Search, 
+              title: "Heuristic Search", 
+              desc: "Deep-scanning global vulnerability vectors with sub-second latency.",
+              accent: "border-neon-green/30"
+            },
+            { 
+              icon: Code, 
+              title: "Vector Synthesis", 
+              desc: "Crafting optimized payloads for validated infrastructure resilience testing.",
+              accent: "border-blue-500/30"
+            },
+            { 
+              icon: Target, 
+              title: "Node Recon", 
+              desc: "Multi-layered architectural deconstruction for complete attack surface visibility.",
+              accent: "border-red-500/30"
+            }
+          ].map((feature, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 + (0.1 * i) }}
+              className={`glass-card p-8 md:p-10 neon-border group hover:bg-white/5 transition-all cursor-default border-white/5 hover:${feature.accent} relative overflow-hidden`}
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/2 blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-white/5 flex items-center justify-center mb-8 group-hover:scale-110 group-hover:bg-neon-green/10 transition-all border border-white/10 group-hover:border-neon-green/30">
+                <feature.icon className="w-7 h-7 md:w-8 md:h-8 text-white/40 group-hover:text-neon-green transition-colors" />
+              </div>
+              <h3 className="text-xl md:text-2xl font-black text-white mb-4 font-mono uppercase tracking-widest">{feature.title}</h3>
+              <p className="text-white/40 text-sm md:text-base font-mono leading-relaxed">{feature.desc}</p>
+            </motion.div>
+          ))}
+        </div>
+        
+        <footer className="w-full max-w-7xl mx-auto px-4 mt-auto py-12 border-t border-white/5 z-10 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-4 font-mono text-[9px] md:text-[10px] text-white/10 uppercase tracking-[0.5em]">
+          <div className="text-center md:text-left">
+            Vayu CSF v2.5 Protocol • Authorized Access Restricted
+          </div>
+          <div className="flex gap-8 md:gap-12">
+            <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" /> Nodes: 4,092 Active</span>
+            <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-blue-500/50" /> Latency: 42ms</span>
+          </div>
+          <div className="text-center md:text-right">
+            © 2026 RudraTech Strategic Intelligence
+          </div>
+        </footer>
+      </div>
+    );
+  }
+
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div 
+        key="authenticated"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="min-h-screen bg-cyber-bg flex flex-col selection:bg-neon-green selection:text-black"
+      >
+        {/* Sticky Header Navigation */}
+        <header className="sticky top-0 z-50 w-full border-b border-white/5 bg-black/60 backdrop-blur-xl transition-all h-16 md:h-20">
+          <div className="max-w-7xl mx-auto px-4 h-full flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-neon-green/10 border border-neon-green/20 flex items-center justify-center group overflow-hidden relative">
+                <div className="absolute inset-0 bg-neon-green/20 blur-lg scale-150 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <span className="text-neon-green font-black text-lg md:text-xl relative z-10 font-mono">V</span>
+              </div>
+              <div className="flex flex-col">
+                <div className="text-[10px] md:text-xs font-mono text-white/20 uppercase tracking-[0.3em] font-black">Vayu CSF</div>
+                <div className="h-[2px] w-full bg-neon-green/20 mt-0.5 rounded-full overflow-hidden">
+                  <motion.div 
+                    initial={{ x: "-100%" }}
+                    animate={{ x: "100%" }}
+                    transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+                    className="w-1/3 h-full bg-neon-green"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 md:gap-6">
+              <div className="hidden sm:flex flex-col items-end">
+                <div className="text-[8px] font-mono text-white/20 uppercase tracking-widest leading-none mb-1">Authenticated Operator</div>
+                <div className="text-[10px] font-mono text-white/60 font-bold">{user?.username}</div>
+              </div>
+              <div className="h-8 w-[1px] bg-white/5 hidden sm:block" />
+              <button 
+                onClick={handleSignOut}
+                className="flex items-center gap-2 px-3 md:px-5 py-2 rounded-xl bg-white/5 border border-white/10 text-[10px] font-mono text-white/40 hover:text-red-400 hover:border-red-400/30 hover:bg-red-500/5 transition-all uppercase tracking-widest font-black group"
+              >
+                <LogOut className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" />
+                <span className="hidden sm:inline text-[9px] md:text-[10px]">Log Out</span>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 max-w-7xl mx-auto px-4 py-12 md:py-20 w-full space-y-16 md:space-y-32">
+          {/* Hero Section */}
+          <section className="text-center relative">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-64 bg-neon-green/5 blur-[120px] -z-10 pointer-events-none" />
+            
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="inline-flex items-center gap-3 mb-8 px-4 py-1 rounded-full bg-neon-green/10 border border-neon-green/20 backdrop-blur-md"
+            >
+              <div className="relative">
+                <Activity className="w-4 h-4 text-neon-green animate-pulse" />
+                <div className="absolute inset-0 bg-neon-green blur-sm animate-pulse opacity-50" />
+              </div>
+              <span className="text-[10px] font-mono text-neon-green tracking-[0.3em] uppercase font-bold">Vayu AGI v2.5 Deployment Portfolio</span>
+            </motion.div>
+            
+            <motion.h1 
+              initial={{ opacity: 0, filter: 'blur(10px)' }}
+              animate={{ opacity: 1, filter: 'blur(0px)' }}
+              className="text-6xl md:text-8xl lg:text-[140px] font-black tracking-tighter mb-8 bg-gradient-to-b from-white via-white to-white/20 bg-clip-text text-transparent leading-none"
+            >
+              VAYU CSF
+            </motion.h1>
+            
+            <motion.p 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="text-white/40 text-lg md:text-2xl max-w-3xl mx-auto font-mono tracking-tight px-4"
+            >
+              Advanced Cyber Intelligence & Automated Research Engine<br/>
+              <span className="text-[10px] md:text-xs opacity-40 uppercase tracking-[0.5em] mt-4 block">Zero-Knowledge Architecture • Global Awareness • 100% Frontend</span>
+            </motion.p>
+          </section>
+
+          {/* Research Interface */}
+          <section className="max-w-4xl mx-auto w-full">
+            <form onSubmit={handleSearch} className="relative group">
+              <div className="absolute -inset-1 bg-neon-green/20 blur-2xl group-hover:bg-neon-green/30 transition-all duration-700 rounded-[2rem] opacity-50" />
+              <div className="relative flex items-center glass-card p-2 md:p-3 neon-border bg-black/60 rounded-2xl md:rounded-3xl border-white/10 group-hover:border-neon-green/40 transition-colors">
+                <Search className="w-6 h-6 md:w-8 md:h-8 ml-4 text-white/20 group-hover:text-neon-green/40 transition-colors" />
+                <input 
+                  type="text" 
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Analyze threat vector... (e.g., CVE-2024-XXXX impact)"
+                  className="flex-1 bg-transparent border-none outline-none px-4 py-4 md:py-6 text-lg md:text-2xl font-mono placeholder:text-white/10"
+                />
+                <button 
+                  disabled={loading}
+                  className="cyber-button flex items-center gap-3 mr-1 md:mr-2 py-3 md:py-5 px-6 md:px-10 rounded-xl md:rounded-2xl transition-transform active:scale-95 disabled:opacity-50"
+                >
+                  {loading ? <Loader2 className="w-5 h-5 md:w-6 md:h-6 animate-spin text-black" /> : <Zap className="w-5 h-5 md:w-6 md:h-6 text-black fill-current" />}
+                  <span className="hidden sm:inline font-black tracking-widest text-xs md:text-sm">RESEARCH</span>
+                </button>
+              </div>
+            </form>
+
+            {/* Thinking / Loading State */}
+            <AnimatePresence>
+              {loading && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="mt-12 flex flex-col items-center gap-8 py-12 px-6 rounded-3xl bg-white/5 border border-white/5 border-dashed relative overflow-hidden"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-t from-neon-green/5 to-transparent skew-y-12 pointer-events-none" />
+                  
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-neon-green/30 blur-3xl animate-pulse scale-150" />
+                    <div className="w-20 h-20 md:w-24 md:h-24 rounded-full border-4 border-neon-green/10 border-t-neon-green animate-spin relative" />
+                    <Terminal className="absolute inset-0 m-auto w-8 h-8 text-neon-green animate-pulse" />
+                  </div>
+
+                  <div className="text-center space-y-4 relative z-10">
+                    <h3 className="font-mono text-neon-green text-lg md:text-2xl font-black tracking-[0.2em] uppercase">
+                      {loadingTime >= 4 ? 'Processing Advanced Heuristics...' : 'Initiating Deep Search Protocol...'}
+                    </h3>
+                    <div className="flex flex-col items-center gap-3">
+                      <p className="text-white/40 text-[10px] md:text-xs font-mono uppercase tracking-[0.4em] max-w-sm mx-auto leading-relaxed">
+                        Scanning Global Databases • Cross-Referencing Threat Actors • Simulating Vector Impact
+                      </p>
+                      <AnimatePresence>
+                        {loadingTime >= 4 && (
+                          <motion.p
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="text-neon-green/40 text-[10px] font-mono tracking-widest uppercase italic font-bold"
+                          >
+                            [ Thinking a little longer for highly accurate results ]
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+
+                  <div className="w-full max-w-md h-1 bg-white/5 rounded-full overflow-hidden">
+                    <motion.div 
+                      className="h-full bg-neon-green shadow-[0_0_10px_#00ff41]"
+                      initial={{ width: "0%" }}
+                      animate={{ width: "100%" }}
+                      transition={{ duration: 15, ease: "linear" }}
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Suggestions & History */}
+            <div className="mt-8 space-y-6">
+              {!loading && !result && (
+                <div className="flex flex-wrap justify-center gap-2">
+                  {SUGGESTIONS.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => { setQuery(s); handleSearch(undefined, s); }}
+                      className="text-[10px] font-mono uppercase tracking-widest px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/40 hover:text-neon-green hover:border-neon-green/30 hover:bg-neon-green/5 transition-all text-center"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {history.length > 0 && !loading && !result && (
+                <div className="glass-card p-6 bg-black/40 border-white/10 rounded-2xl md:rounded-3xl">
+                  <div className="flex justify-between items-center mb-4">
+                    <div className="flex items-center gap-2 text-xs font-mono text-white/40 uppercase tracking-widest font-bold">
+                      <History className="w-4 h-4 text-neon-green" />
+                      Recent Missions
+                    </div>
+                    <button 
+                      onClick={clearHistory}
+                      className="text-[10px] font-mono text-red-500/40 hover:text-red-500 uppercase tracking-widest transition-colors flex items-center gap-1.5"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Purge Cache
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {history.map((h, i) => (
+                      <button
+                        key={i}
+                        onClick={() => { setQuery(h); handleSearch(undefined, h); }}
+                        className="text-[10px] font-mono px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/60 hover:text-neon-green hover:border-neon-green/30 hover:bg-white/10 transition-all truncate max-w-full"
+                      >
+                        {h}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Results Output Section */}
+          <div ref={resultsRef} className="scroll-mt-32">
+            <AnimatePresence mode="wait">
+              {result && !loading && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 40 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ type: "spring", damping: 25, stiffness: 100 }}
+                  className="space-y-12"
+                >
+                  {/* Results components... */}
             {/* Tabs */}
             <div className="flex flex-wrap justify-center gap-2 md:gap-4 mb-12">
               {[
@@ -969,56 +1209,59 @@ export default function App() {
             </div>
           </motion.div>
         )}
+        </AnimatePresence>
+      </div>
+    </main>
+
+    {/* Footer */}
+    <footer className="mt-auto px-4 py-12 text-center border-t border-white/5 relative overflow-hidden bg-cyber-bg/50 backdrop-blur-sm">
+      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full h-32 bg-neon-green/5 blur-[80px] -z-10 pointer-events-none" />
+      
+      {/* Live Feed Simulation */}
+      <div className="max-w-4xl mx-auto mb-12 px-4 text-left">
+        <div className="glass-card p-4 md:p-6 bg-black/40 border-white/5 overflow-hidden h-32 md:h-40 relative">
+          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-transparent via-transparent to-cyber-bg/80 z-10 pointer-events-none" />
+          <div className="flex items-center gap-2 mb-3 text-[10px] font-mono text-neon-green/40 uppercase tracking-[0.3em] font-bold">
+            <div className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
+            Live Intelligence Stream
+          </div>
+          <div className="space-y-2 font-mono text-[8px] md:text-[10px] text-white/20 animate-scroll-up leading-relaxed">
+            <p>[{new Date().toISOString()}] INF: Analyzing global threat landscape...</p>
+            <p>[{new Date().toISOString()}] INF: Correlation engine syncing with Vayu v2.5 core</p>
+            <p>[{new Date().toISOString()}] INF: Patching vulnerability database with latest CVE data</p>
+            <p>[{new Date().toISOString()}] INF: Deep packet analysis for anomalous traffic patterns</p>
+            <p>[{new Date().toISOString()}] WARN: Increased botnet activity targeting legacy infrastructure</p>
+            <p>[{new Date().toISOString()}] INF: Generating defense-in-depth signatures...</p>
+          </div>
+        </div>
       </div>
 
-      {/* Footer */}
-      <footer className="mt-auto pt-12 text-center border-t border-white/5 relative overflow-hidden">
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full h-32 bg-neon-green/5 blur-[80px] -z-10 pointer-events-none" />
-        
-        {/* Live Feed Simulation */}
-        <div className="max-w-4xl mx-auto mb-12 px-4">
-          <div className="glass-card p-4 bg-black/40 border-white/5 text-left overflow-hidden h-32 relative">
-            <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-transparent via-transparent to-black/80 z-10 pointer-events-none" />
-            <div className="flex items-center gap-2 mb-2 text-[8px] font-mono text-neon-green/40 uppercase tracking-widest">
-              <div className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
-              Live Intelligence Stream
-            </div>
-            <div className="space-y-1 font-mono text-[8px] text-white/20 animate-scroll-up">
-              <p>[{new Date().toISOString()}] INF: Analyzing global CVE database...</p>
-              <p>[{new Date().toISOString()}] INF: New exploit pattern detected in wild: CVE-2026-XXXX</p>
-              <p>[{new Date().toISOString()}] WARN: Increased scanning activity from known malicious botnets</p>
-              <p>[{new Date().toISOString()}] INF: Updating Vayu AGI v2.5 intelligence core...</p>
-              <p>[{new Date().toISOString()}] INF: Correlating threat actors with recent campaigns...</p>
-              <p>[{new Date().toISOString()}] INF: Generating mitigation signatures...</p>
-            </div>
-          </div>
+      <div className="flex flex-wrap justify-center gap-4 md:gap-12 mb-8">
+        <div className="flex items-center gap-2 text-[10px] font-mono text-white/20 tracking-widest uppercase font-bold">
+          <span className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
+          CORE NOMINAL
         </div>
-
-        <div className="flex flex-wrap justify-center gap-4 md:gap-8 mb-8">
-          <div className="flex items-center gap-2 text-[10px] font-mono text-white/20">
-            <span className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
-            VAYU CORE ONLINE
-          </div>
-          <div className="flex items-center gap-2 text-[10px] font-mono text-white/20">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-            PUTER SYNC ACTIVE
-          </div>
-          <div className="flex items-center gap-2 text-[10px] font-mono text-white/20">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-            THREAT LEVEL: ELEVATED
-          </div>
+        <div className="flex items-center gap-2 text-[10px] font-mono text-white/20 tracking-widest uppercase font-bold">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+          VAULT SECURE
         </div>
-        <p className="text-[10px] font-mono text-white/20 uppercase tracking-[0.4em] mb-4">
-          Vayu AGI © 2026 RudraTech Inc • Elite Cybersecurity Intelligence
-        </p>
-        <div className="flex justify-center gap-4 text-[8px] font-mono text-white/10 uppercase tracking-widest">
-          <span>Authorized Research Only</span>
-          <span>•</span>
-          <span>End-to-End Encryption</span>
-          <span>•</span>
-          <span>Zero-Knowledge Architecture</span>
+        <div className="flex items-center gap-2 text-[10px] font-mono text-white/20 tracking-widest uppercase font-bold">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+          THREAT LEVEL: 4
         </div>
-      </footer>
-    </div>
-  );
+      </div>
+      <p className="text-[10px] font-mono text-white/20 uppercase tracking-[0.5em] mb-4">
+        Vayu AGI © 2026 RudraTech Intelligence Systems
+      </p>
+      <div className="flex flex-wrap justify-center gap-4 text-[8px] font-mono text-white/10 uppercase tracking-widest">
+        <span>Authorized Research Only</span>
+        <span className="hidden sm:inline">•</span>
+        <span>Military Grade Encryption</span>
+        <span className="hidden sm:inline">•</span>
+        <span>Zero-Trust Infrastructure</span>
+      </div>
+    </footer>
+  </motion.div>
+</AnimatePresence>
+);
 }

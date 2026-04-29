@@ -19,6 +19,9 @@
 }
 
 @layer base {
+  html {
+    @apply scroll-smooth;
+  }
   body {
     @apply bg-cyber-bg text-white font-sans antialiased;
     background-image: 

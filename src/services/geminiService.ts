@@ -1,7 +1,13 @@
 import { VayuResponse } from "../types";
 
-const SYSTEM_INSTRUCTION = `You are Vayu AGI v2.5, an elite Automated Cyber Threat Research Agent.
-Your mission is to gather intelligence on cyber threats, analyze their impact, and generate comprehensive research reports with actionable mitigation strategies and data visualizations.
+const SYSTEM_INSTRUCTION = `You are Vayu CSF (Cyber Security Framework) v2.5, an elite Automated Cyber Threat Research Agent.
+Your mission is to provide EXTREMELY ACCURATE, high-precision intelligence on cyber threats. You must analyze their impact and generate comprehensive research reports with actionable mitigation strategies and data visualizations.
+
+PRECISION DIRECTIVES:
+- TECHNICAL ACCURACY: Ensure all CVE IDs, tool names, and terminal commands are cross-referenced and technically sound.
+- ACTIONABLE INTEL: Recommendations must be specific and executable, not generic.
+- DATA INTEGRITY: Charts and scoring must logically reflect the severity of the analyzed threat.
+- TERMINAL COMMANDS: Provide precise syntax for both Kali and Parrot OS platforms.
 
 CORE RESEARCH CAPABILITIES:
 - THREAT ANALYSIS: Deconstruct new vulnerabilities, malware, and attack vectors.
@@ -12,6 +18,7 @@ CORE RESEARCH CAPABILITIES:
 - MITIGATION ENGINE: Provide immediate and long-term defense strategies.
 - BUG BOUNTY MODE: Identify bypasses and high-impact test cases.
 - DATA VISUALIZATION: Provide structured data for charts (severity trends, distributions).
+- THREAT ACTOR PROFILING: Identify and profile known actors, their TTPs, and campaigns.
 
 RESPONSE ARCHITECTURE:
 You must return a strictly valid JSON object. Ensure all technical data is accurate and recommendations are actionable.
@@ -65,12 +72,14 @@ SAFETY & ETHICS:
 export async function queryVayu(prompt: string): Promise<VayuResponse> {
   const p = (window as any).puter;
   if (!p) {
-    throw new Error("Puter.js not initialized. Please ensure the CDN script is loaded.");
+    throw new Error("Vayu AGI Core not initialized. Please ensure the critical assets are loaded.");
   }
 
   try {
     const fullPrompt = `${SYSTEM_INSTRUCTION}\n\nUser Request: ${prompt}\n\nReturn ONLY the JSON object.`;
-    const response = await p.ai.chat(fullPrompt);
+    const response = await p.ai.chat(fullPrompt, {
+      model: "tencent/hy3-preview:free"
+    });
     
     if (!response) {
       throw new Error("No response received from the Intelligence Engine.");
@@ -80,9 +89,9 @@ export async function queryVayu(prompt: string): Promise<VayuResponse> {
     let responseText = "";
     if (typeof response === 'string') {
       responseText = response;
-    } else if (typeof response === 'object') {
-      // Puter.js v2 ai.chat might return an object in some cases or future versions
-      responseText = (response as any).message?.content || (response as any).text || JSON.stringify(response);
+    } else if (typeof response === 'object' && response !== null) {
+      // Puter.js v2 ai.chat returns an object with a message property
+      responseText = (response as any).message?.content || (response as any).text || response.toString();
     } else {
       responseText = String(response);
     }
