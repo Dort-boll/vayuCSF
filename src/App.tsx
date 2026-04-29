@@ -238,7 +238,29 @@ export default function App() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-cyber-bg flex flex-col items-center justify-center px-4 relative overflow-hidden selection:bg-neon-green selection:text-black">
+      <div className="min-h-screen bg-cyber-bg flex flex-col items-center justify-center pt-16 md:pt-20 px-4 relative overflow-hidden selection:bg-neon-green selection:text-black">
+        {/* Sticky Header for Landing */}
+        <header className="fixed top-0 left-0 z-50 w-full border-b border-white/5 bg-black/40 backdrop-blur-xl transition-all h-16 md:h-20">
+          <div className="max-w-7xl mx-auto px-4 h-full flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-neon-green/10 border border-neon-green/20 flex items-center justify-center relative overflow-hidden">
+                <span className="text-neon-green font-black text-lg md:text-xl relative z-10 font-mono">V</span>
+              </div>
+              <div className="flex flex-col">
+                <div className="text-[10px] md:text-xs font-mono text-white/20 uppercase tracking-[0.3em] font-black">Vayu CSF</div>
+                <div className="h-[1px] w-full bg-neon-green/30 mt-0.5" />
+              </div>
+            </div>
+            <button 
+              onClick={handleSignIn}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-neon-green/10 border border-neon-green/20 text-[10px] font-mono text-neon-green hover:bg-neon-green hover:text-black transition-all uppercase tracking-widest font-black"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              Sign In
+            </button>
+          </div>
+        </header>
+
         {/* Advanced Background System */}
         <div className="absolute inset-0 z-0 pointer-events-none">
           <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(rgba(0,255,65,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,65,0.02)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)]" />
