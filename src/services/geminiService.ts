@@ -78,7 +78,7 @@ export async function queryVayu(prompt: string): Promise<VayuResponse> {
   try {
     const fullPrompt = `${SYSTEM_INSTRUCTION}\n\nUser Request: ${prompt}\n\nReturn ONLY the JSON object.`;
     const response = await p.ai.chat(fullPrompt, {
-      model: "tencent/hy3-preview:free"
+      model: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
     });
     
     if (!response) {
@@ -96,15 +96,46 @@ export async function queryVayu(prompt: string): Promise<VayuResponse> {
       responseText = String(response);
     }
 
-    // Clean the response in case the AI wraps it in markdown blocks
+    // Clean the response in case the AI wraps it in markdown blocks or includes reasoning
     let cleanedResponse = responseText.trim();
-    if (cleanedResponse.includes("```json")) {
-      cleanedResponse = cleanedResponse.split("```json")[1].split("```")[0].trim();
-    } else if (cleanedResponse.includes("```")) {
-      cleanedResponse = cleanedResponse.split("```")[1].split("```")[0].trim();
+    
+    // Remove reasoning tags if present
+    cleanedResponse = cleanedResponse.replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim();
+
+    // Try to extract JSON between markdown blocks first
+    const markdownMatch = cleanedResponse.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (markdownMatch && markdownMatch[1]) {
+      cleanedResponse = markdownMatch[1].trim();
+    } else {
+      // If no markdown blocks, try to find the first '{' and the last '}'
+      const firstBrace = cleanedResponse.indexOf('{');
+      const lastBrace = cleanedResponse.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        cleanedResponse = cleanedResponse.substring(firstBrace, lastBrace + 1);
+      }
     }
 
-    const parsed = JSON.parse(cleanedResponse);
+    // Defensive check: sometimes models escape quotes unnecessarily or incorrectly
+    // or return things like \" inside what should be a raw string.
+    // However, JSON.parse usually handles standard escaped quotes.
+    // If we still get errors, we might need more aggressive cleanup.
+
+    let parsed;
+    try {
+      parsed = JSON.parse(cleanedResponse);
+    } catch (e) {
+      // One last attempt: handle common "malformed" JSON from LLMs 
+      // sometimes they include trailing commas or weird control characters
+      try {
+        const sanitized = cleanedResponse
+          .replace(/,\s*([\]}])/g, '$1') // Remove trailing commas
+          .replace(/[\x00-\x1F\x7F-\x9F]/g, ''); // Remove control characters
+        parsed = JSON.parse(sanitized);
+      } catch (innerError) {
+        console.error("Failed to parse cleaned JSON:", cleanedResponse);
+        throw new Error("Invalid intelligence format: The engine returned malformed data.");
+      }
+    }
     
     // Ensure all required fields exist to prevent UI crashes and handle missing data gracefully
     const validated: VayuResponse = {

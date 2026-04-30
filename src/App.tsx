@@ -191,7 +191,7 @@ export default function App() {
   const handleSearch = async (e?: React.FormEvent, overrideQuery?: string) => {
     e?.preventDefault();
     const activeQuery = overrideQuery || query;
-    if (!activeQuery.trim()) return;
+    if (!activeQuery || !activeQuery.trim()) return;
 
     setLoading(true);
     setLoadingTime(0);
