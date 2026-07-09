@@ -74,6 +74,58 @@ const SUGGESTIONS = [
   "recon workflow for cloud assets"
 ];
 
+interface SwipeToEnterProps {
+  onSwipeSuccess: () => void;
+}
+
+function SwipeToEnter({ onSwipeSuccess }: SwipeToEnterProps) {
+  const [sliderX, setSliderX] = useState(0);
+  const [isSwiped, setIsSwiped] = useState(false);
+
+  return (
+    <div className="relative w-72 h-14 bg-white/5 border border-white/10 rounded-full p-1.5 flex items-center overflow-hidden select-none">
+      {/* Progress bar background fill */}
+      <div 
+        className="absolute top-1.5 left-1.5 bottom-1.5 bg-neon-green/20 rounded-full transition-all duration-150"
+        style={{ width: `${(sliderX / 190) * 100}%` }}
+      />
+
+      {/* Background text that fades out as we drag */}
+      <div 
+        className="absolute inset-0 flex items-center justify-center pointer-events-none text-[9px] font-mono font-bold uppercase tracking-[0.25em] transition-opacity"
+        style={{ opacity: Math.max(0.1, 1 - (sliderX / 150)) }}
+      >
+        {isSwiped ? "DECRYPTING..." : "SWIPE KEY TO ENTER"}
+      </div>
+
+      <motion.div
+        drag="x"
+        dragConstraints={{ left: 0, right: 190 }}
+        dragElastic={0}
+        dragMomentum={false}
+        onDrag={(e, info) => {
+          const currentX = Math.min(190, Math.max(0, info.offset.x));
+          setSliderX(currentX);
+          if (currentX >= 180 && !isSwiped) {
+            setIsSwiped(true);
+            onSwipeSuccess();
+          }
+        }}
+        onDragEnd={() => {
+          if (!isSwiped) {
+            setSliderX(0);
+          }
+        }}
+        animate={{ x: isSwiped ? 190 : sliderX }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        className="w-11 h-11 bg-neon-green text-black rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing shadow-[0_0_15px_rgba(0,255,65,0.4)]"
+      >
+        <ChevronRight className="w-5 h-5" />
+      </motion.div>
+    </div>
+  );
+}
+
 export default function App() {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -238,140 +290,135 @@ export default function App() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-cyber-bg flex flex-col items-center justify-center pt-16 md:pt-20 px-4 relative overflow-hidden selection:bg-neon-green selection:text-black">
-        {/* Sticky Header for Landing */}
-        <header className="fixed top-0 left-0 z-50 w-full border-b border-white/5 bg-black/40 backdrop-blur-xl transition-all h-16 md:h-20">
-          <div className="max-w-7xl mx-auto px-4 h-full flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-neon-green/10 border border-neon-green/20 flex items-center justify-center relative overflow-hidden">
-                <span className="text-neon-green font-black text-lg md:text-xl relative z-10 font-mono">V</span>
-              </div>
-              <div className="flex flex-col">
-                <div className="text-[10px] md:text-xs font-mono text-white/20 uppercase tracking-[0.3em] font-black">Vayu CSF</div>
-                <div className="h-[1px] w-full bg-neon-green/30 mt-0.5" />
-              </div>
-            </div>
-            <button 
-              onClick={handleSignIn}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-neon-green/10 border border-neon-green/20 text-[10px] font-mono text-neon-green hover:bg-neon-green hover:text-black transition-all uppercase tracking-widest font-black"
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              Sign In
-            </button>
+      <div className="min-h-screen bg-cyber-bg flex flex-col items-center justify-center p-4 relative overflow-hidden selection:bg-neon-green selection:text-black">
+        {/* Moire Optical Illusion Concentric Circles */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20 z-0">
+          {/* Illusion Layer 1: Clockwise Fine Rings */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] md:w-[900px] md:h-[900px] animate-spin-slow">
+            <svg className="w-full h-full text-neon-green/20" viewBox="0 0 100 100">
+              {[10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150].map((r, idx) => (
+                <circle
+                  key={idx}
+                  cx="50"
+                  cy="50"
+                  r={r * 0.3}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="0.25"
+                  strokeDasharray="2 1"
+                />
+              ))}
+            </svg>
           </div>
-        </header>
 
-        {/* Advanced Background System */}
-        <div className="absolute inset-0 z-0 pointer-events-none">
-          <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(rgba(0,255,65,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,65,0.02)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)]" />
-          <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-neon-green/5 blur-[160px] rounded-full animate-pulse" />
-          <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-blue-500/5 blur-[160px] rounded-full animate-pulse" style={{ animationDelay: '2s' }} />
+          {/* Illusion Layer 2: Counter-Clockwise Fine Rings */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] md:w-[900px] md:h-[900px] animate-spin-slow-reverse">
+            <svg className="w-full h-full text-neon-green/15" viewBox="0 0 100 100">
+              {[12, 22, 32, 42, 52, 62, 72, 82, 92, 102, 112, 122, 132, 142, 152].map((r, idx) => (
+                <circle
+                  key={idx}
+                  cx="50"
+                  cy="50"
+                  r={r * 0.3}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="0.25"
+                  strokeDasharray="1.5 1.5"
+                />
+              ))}
+            </svg>
+          </div>
         </div>
 
+        {/* 3D Perspective Grid Tunnel Illusion */}
+        <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+          <div 
+            className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[200%] h-[55%] origin-bottom opacity-[0.08]"
+            style={{
+              backgroundImage: `linear-gradient(to right, #00ff41 1px, transparent 1px), linear-gradient(to top, #00ff41 1px, transparent 1px)`,
+              backgroundSize: '40px 40px',
+              transform: 'perspective(300px) rotateX(65deg) translateY(0%)',
+              animation: 'grid-scroll 25s linear infinite'
+            }}
+          />
+          <div 
+            className="absolute top-0 left-1/2 -translate-x-1/2 w-[200%] h-[55%] origin-top opacity-[0.08]"
+            style={{
+              backgroundImage: `linear-gradient(to right, #00ff41 1px, transparent 1px), linear-gradient(to bottom, #00ff41 1px, transparent 1px)`,
+              backgroundSize: '40px 40px',
+              transform: 'perspective(300px) rotateX(-65deg) translateY(0%)',
+              animation: 'grid-scroll 25s linear infinite'
+            }}
+          />
+        </div>
+
+        {/* Tactical Center Box with HUD corner decorations */}
         <motion.div 
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
+          initial={{ opacity: 0, scale: 0.98, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ duration: 0.8, ease: "easeOut" }}
-          className="text-center z-10 max-w-6xl mx-auto py-12 md:py-24"
+          className="z-10 w-full max-w-md md:max-w-xl mx-auto p-1 relative"
         >
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="inline-flex items-center gap-3 mb-8 md:mb-12 px-5 py-2 rounded-xl bg-neon-green/5 border border-neon-green/20 backdrop-blur-2xl shadow-[0_0_20px_rgba(0,255,65,0.05)]"
-          >
-            <Shield className="w-4 h-4 text-neon-green" />
-            <span className="text-[9px] md:text-[10px] font-mono text-neon-green tracking-[0.4em] uppercase font-black">Secure Intelligence Protocol v2.5</span>
-          </motion.div>
+          {/* Cyber target/HUD corners */}
+          <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-neon-green" />
+          <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-neon-green" />
+          <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-neon-green" />
+          <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-neon-green" />
 
-          <h1 className="text-[14vw] md:text-[10rem] lg:text-[12rem] font-black tracking-tighter mb-6 md:mb-10 leading-[0.8] md:leading-none select-none">
-            <span className="bg-gradient-to-b from-white via-white to-white/40 bg-clip-text text-transparent">VAYU</span>
-            <span className="text-neon-green drop-shadow-[0_0_15px_rgba(0,255,65,0.5)]">.</span>
-            <span className="bg-gradient-to-b from-white/40 to-white/10 bg-clip-text text-transparent">CSF</span>
-          </h1>
+          {/* Central frosted box panel */}
+          <div className="bg-black/90 backdrop-blur-3xl border border-neon-green/30 rounded-none p-8 md:p-12 relative overflow-hidden flex flex-col items-center text-center shadow-[0_0_80px_rgba(0,255,65,0.15)]">
+            {/* Scanning Laser Line */}
+            <div className="absolute left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-neon-green to-transparent opacity-60 animate-laser-scan pointer-events-none" />
 
-          <motion.p 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="text-white/40 text-lg md:text-2xl lg:text-3xl font-mono mb-12 md:mb-16 max-w-2xl lg:max-w-4xl mx-auto leading-tight md:leading-relaxed tracking-tight px-4"
-          >
-            Autonomous <span className="text-white/80 font-black">Cyber Security Framework</span>. 
-            Identify breaches, neutralize vectors, and orchestrate elite threat research via AGI-driven heuristics.
-          </motion.p>
+            {/* Glowing header badge */}
+            <div className="flex items-center gap-2 mb-6 px-3 py-1 rounded border border-neon-green/20 bg-neon-green/5">
+              <Shield className="w-3.5 h-3.5 text-neon-green animate-pulse" />
+              <span className="text-[8px] font-mono text-neon-green tracking-[0.4em] uppercase font-bold">VAYU CORE CSF SECURE NODE</span>
+            </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-6 md:gap-10">
-            <button 
-              onClick={handleSignIn}
-              className="group relative w-full sm:w-auto px-10 md:px-16 py-5 md:py-6 bg-neon-green text-black font-black uppercase tracking-[0.3em] rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-[0_0_40px_rgba(0,255,65,0.3)] hover:shadow-[0_0_60px_rgba(0,255,65,0.5)] flex items-center justify-center gap-4 text-sm md:text-base cursor-pointer"
-            >
-              <LogIn className="w-5 h-5 md:w-6 md:h-6" />
-              TERMINAL ACCESS
-              <div className="absolute inset-0 rounded-2xl bg-white opacity-0 group-hover:opacity-10 transition-opacity" />
-            </button>
-            <div className="flex items-center gap-6 text-[9px] md:text-[11px] font-mono text-white/30 uppercase tracking-[0.3em] font-bold">
-              <div className="flex items-center gap-2">
-                <Lock className="w-4 h-4" /> CVSS 10.0 Analysis
+            {/* Title */}
+            <h1 className="text-5xl md:text-7xl font-mono font-black tracking-tight mb-2 select-none">
+              <span className="text-white">VAYU</span>
+              <span className="text-neon-green font-bold">.</span>
+              <span className="text-white/60">CSF</span>
+            </h1>
+            <div className="text-[9px] font-mono text-neon-green/60 tracking-[0.3em] uppercase mb-8 font-black">CYBER SECURITY FRAMEWORK</div>
+
+            {/* Center Box descriptive text */}
+            <p className="text-white/70 text-xs md:text-sm font-mono mb-8 max-w-sm leading-relaxed">
+              Autonomous security intelligence matrix. Neutralize vectors, profile actors, and orchestrate deep threat research with AGI-driven precision.
+            </p>
+
+            {/* Live system state indicators */}
+            <div className="w-full grid grid-cols-2 gap-4 mb-8 text-[9px] font-mono text-white/40 uppercase tracking-widest text-left border-t border-b border-white/5 py-4">
+              <div>
+                <span className="text-neon-green/50 font-bold">VAULT:</span> SECURE
               </div>
-              <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
-              <div className="flex items-center gap-2">
-                <Cloud className="w-4 h-4" /> Global Node Sync
+              <div>
+                <span className="text-neon-green/50 font-bold">NODE:</span> 4092 ACTIVE
+              </div>
+              <div>
+                <span className="text-neon-green/50 font-bold">LATENCY:</span> 42 MS
+              </div>
+              <div>
+                <span className="text-neon-green/50 font-bold">CREDENTIALS:</span> STANDBY
               </div>
             </div>
+
+            {/* Swipe to enter */}
+            <div className="w-full flex justify-center mb-6">
+              <SwipeToEnter onSwipeSuccess={handleSignIn} />
+            </div>
+
+            {/* Alternative standard quick sign in trigger */}
+            <button 
+              onClick={handleSignIn}
+              className="text-[9px] font-mono text-white/30 hover:text-neon-green uppercase tracking-[0.15em] transition-colors cursor-pointer"
+            >
+              [ Click to bypass slider ]
+            </button>
           </div>
         </motion.div>
-
-        {/* Dynamic Feature Grid - Highly Optimized for All Screens */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 max-w-7xl w-full px-4 md:px-8 mt-12 md:mt-24 z-10 pb-20">
-          {[
-            { 
-              icon: Search, 
-              title: "Heuristic Search", 
-              desc: "Deep-scanning global vulnerability vectors with sub-second latency.",
-              accent: "border-neon-green/30"
-            },
-            { 
-              icon: Code, 
-              title: "Vector Synthesis", 
-              desc: "Crafting optimized payloads for validated infrastructure resilience testing.",
-              accent: "border-blue-500/30"
-            },
-            { 
-              icon: Target, 
-              title: "Node Recon", 
-              desc: "Multi-layered architectural deconstruction for complete attack surface visibility.",
-              accent: "border-red-500/30"
-            }
-          ].map((feature, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 + (0.1 * i) }}
-              className={`glass-card p-8 md:p-10 neon-border group hover:bg-white/5 transition-all cursor-default border-white/5 hover:${feature.accent} relative overflow-hidden`}
-            >
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white/2 blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-white/5 flex items-center justify-center mb-8 group-hover:scale-110 group-hover:bg-neon-green/10 transition-all border border-white/10 group-hover:border-neon-green/30">
-                <feature.icon className="w-7 h-7 md:w-8 md:h-8 text-white/40 group-hover:text-neon-green transition-colors" />
-              </div>
-              <h3 className="text-xl md:text-2xl font-black text-white mb-4 font-mono uppercase tracking-widest">{feature.title}</h3>
-              <p className="text-white/40 text-sm md:text-base font-mono leading-relaxed">{feature.desc}</p>
-            </motion.div>
-          ))}
-        </div>
-        
-        <footer className="w-full max-w-7xl mx-auto px-4 mt-auto py-12 border-t border-white/5 z-10 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-4 font-mono text-[9px] md:text-[10px] text-white/10 uppercase tracking-[0.5em]">
-          <div className="text-center md:text-left">
-            Vayu CSF v2.5 Protocol • Authorized Access Restricted
-          </div>
-          <div className="flex gap-8 md:gap-12">
-            <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" /> Nodes: 4,092 Active</span>
-            <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-blue-500/50" /> Latency: 42ms</span>
-          </div>
-          <div className="text-center md:text-right">
-            © 2026 RudraTech Strategic Intelligence
-          </div>
-        </footer>
       </div>
     );
   }
